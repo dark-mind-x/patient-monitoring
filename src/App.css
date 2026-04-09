@@ -1,0 +1,412 @@
+/* Deep Dark Theme Variables */
+:root {
+  --bg-dark: #121619;
+  --panel-bg: #1e272e;
+  --border-color: #2f3640;
+  --text-main: #f5f6fa;
+  --text-muted: #718093;
+  
+  --neon-red: #ff4757;
+  --neon-blue: #1e90ff;
+  --neon-orange: #ffa502;
+  --neon-green: #2ed573;
+}
+
+body {
+  margin: 0;
+  font-family: 'Inter', system-ui, sans-serif;
+  background-color: var(--bg-dark);
+  color: var(--text-main);
+}
+
+/* Top Navigation */
+.top-nav {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1rem 2rem;
+  background-color: var(--panel-bg);
+  border-bottom: 1px solid var(--border-color);
+}
+
+.nav-brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.nav-brand h1 {
+  margin: 0;
+  font-size: 1.2rem;
+  letter-spacing: 1px;
+}
+
+.system-status {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--neon-green);
+  font-weight: 600;
+  font-size: 0.9rem;
+}
+
+.pulse-dot {
+  width: 10px;
+  height: 10px;
+  background-color: var(--neon-green);
+  border-radius: 50%;
+  box-shadow: 0 0 10px var(--neon-green);
+  animation: pulse 1.5s infinite;
+}
+
+@keyframes pulse {
+  0% { box-shadow: 0 0 0 0 rgba(46, 213, 115, 0.7); }
+  70% { box-shadow: 0 0 0 10px rgba(46, 213, 115, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(46, 213, 115, 0); }
+}
+
+/* Main Layout Grid */
+.main-layout {
+  display: grid;
+  grid-template-columns: 300px 1fr;
+  gap: 1.5rem;
+  padding: 1.5rem;
+  max-width: 1400px;
+  margin: 0 auto;
+}
+
+/* Reusable Panel Style */
+.panel {
+  background-color: var(--panel-bg);
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  padding: 1.5rem;
+}
+
+/* Sidebar Components */
+.sidebar {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.panel h3 {
+  margin-top: 0;
+  color: var(--text-muted);
+  font-size: 0.9rem;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+.profile-pic {
+  font-size: 3rem;
+  text-align: center;
+  background: var(--bg-dark);
+  width: 80px;
+  height: 80px;
+  line-height: 80px;
+  border-radius: 50%;
+  margin: 0 auto 1rem;
+}
+
+.patient-name {
+  text-align: center;
+  margin: 0 0 0.5rem 0;
+}
+
+.patient-status {
+  text-align: center;
+  color: var(--neon-green);
+  font-size: 0.9rem;
+  margin-bottom: 1.5rem;
+}
+
+.details-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+}
+
+.detail-item {
+  display: flex;
+  flex-direction: column;
+}
+
+.detail-item label {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+}
+
+.detail-item span {
+  font-weight: bold;
+}
+
+/* Alert Log */
+.alert-log ul {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.alert-item {
+  display: flex;
+  flex-direction: column;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.alert-item:last-child {
+  border-bottom: none;
+}
+
+.alert-time {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+}
+
+.alert-msg {
+  font-size: 0.9rem;
+}
+
+.alert-item.warning .alert-msg { color: var(--neon-orange); }
+.alert-item.info .alert-msg { color: var(--text-main); }
+
+/* Right Content: Vitals Cards */
+.cards-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 1.5rem;
+  margin-bottom: 1.5rem;
+}
+
+.vital-card {
+  background-color: var(--panel-bg);
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  padding: 1.5rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.vital-card:hover {
+  transform: translateY(-3px);
+  background-color: #242e36;
+}
+
+.card-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 1rem;
+}
+
+.card-header h2 {
+  margin: 0;
+  font-size: 1rem;
+  color: var(--text-muted);
+}
+
+.icon { font-size: 1.5rem; }
+
+.vital-value {
+  font-size: 3.5rem;
+  font-weight: 700;
+}
+
+.unit {
+  font-size: 1rem;
+  color: var(--text-muted);
+}
+
+/* Colored Text Classes */
+.text-red { color: var(--neon-red); }
+.text-blue { color: var(--neon-blue); }
+.text-orange { color: var(--neon-orange); }
+
+/* Active Card States */
+.active-red {
+  border-color: var(--neon-red);
+  box-shadow: 0 0 15px rgba(255, 71, 87, 0.1);
+}
+
+.active-blue {
+  border-color: var(--neon-blue);
+  box-shadow: 0 0 15px rgba(30, 144, 255, 0.1);
+}
+
+.active-orange {
+  border-color: var(--neon-orange);
+  box-shadow: 0 0 15px rgba(255, 165, 2, 0.1);
+}
+
+/* Graph Panel */
+.graph-panel {
+  min-height: 400px;
+}
+
+.graph-header h2 {
+  margin: 0 0 1.5rem 0;
+  font-size: 1.1rem;
+  letter-spacing: 1px;
+}
+
+.empty-state {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 300px;
+  border: 1px dashed var(--border-color);
+  border-radius: 8px;
+  color: var(--text-muted);
+}
+
+/* Responsive Design for smaller screens */
+@media (max-width: 900px) {
+  .main-layout {
+    grid-template-columns: 1fr;
+  }
+  .cards-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* =========================================
+   LOGIN SCREEN STYLES
+   ========================================= */
+.login-container {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100vh;
+  background-color: var(--bg-dark);
+  background-image: radial-gradient(circle at 50% -20%, #1e272e 0%, var(--bg-dark) 80%);
+}
+
+.login-box {
+  background-color: var(--panel-bg);
+  border: 1px solid var(--border-color);
+  border-radius: 16px;
+  padding: 3rem;
+  width: 100%;
+  max-width: 400px;
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.4);
+  animation: slideUp 0.4s ease-out;
+}
+
+@keyframes slideUp {
+  from { opacity: 0; transform: translateY(20px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.login-header {
+  text-align: center;
+  margin-bottom: 2.5rem;
+}
+
+.login-logo {
+  font-size: 3.5rem;
+  display: block;
+  margin-bottom: 1rem;
+}
+
+.login-header h2 {
+  margin: 0 0 0.5rem 0;
+  color: var(--text-main);
+  letter-spacing: 1px;
+}
+
+.login-header p {
+  margin: 0;
+  color: var(--neon-red);
+  font-size: 0.85rem;
+  text-transform: uppercase;
+  font-weight: 600;
+  letter-spacing: 1px;
+}
+
+.login-form {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.input-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.input-group label {
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+.input-group input {
+  background-color: var(--bg-dark);
+  border: 1px solid var(--border-color);
+  color: var(--text-main);
+  padding: 1rem;
+  border-radius: 8px;
+  font-size: 1.2rem;
+  text-align: center;
+  letter-spacing: 4px;
+  outline: none;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.input-group input:focus {
+  border-color: var(--neon-blue);
+  box-shadow: 0 0 0 3px rgba(30, 144, 255, 0.2);
+}
+
+.error-message {
+  color: var(--neon-red);
+  font-size: 0.85rem;
+  text-align: center;
+  background-color: rgba(255, 71, 87, 0.1);
+  padding: 0.75rem;
+  border-radius: 6px;
+  border: 1px solid rgba(255, 71, 87, 0.2);
+}
+
+.login-button {
+  background-color: var(--neon-blue);
+  color: white;
+  border: none;
+  padding: 1rem;
+  border-radius: 8px;
+  font-size: 1rem;
+  font-weight: bold;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  cursor: pointer;
+  transition: background-color 0.2s ease, transform 0.1s ease;
+}
+
+.login-button:hover {
+  background-color: #1a7de6;
+}
+
+.login-button:active {
+  transform: scale(0.98);
+}
+
+.logout-btn {
+  background: transparent;
+  border: 1px solid var(--border-color);
+  color: var(--text-muted);
+  padding: 4px 12px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.8rem;
+  margin-left: 15px;
+  transition: all 0.2s ease;
+}
+
+.logout-btn:hover {
+  background: rgba(255, 71, 87, 0.1);
+  color: var(--neon-red);
+  border-color: var(--neon-red);
+}
