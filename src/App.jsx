@@ -10,8 +10,8 @@ function App() {
   const [pinCode, setPinCode] = useState('');
   const [loginError, setLoginError] = useState(false);
 
-  // Dashboard State
-  const [vitals, setVitals] = useState({ bpm: 0, spo2: 0, temperature: 0 });
+  // Dashboard State (Added ECG)
+  const [vitals, setVitals] = useState({ bpm: 0, spo2: 0, temperature: 0, ecg: 0 });
   const [history, setHistory] = useState([]);
   const [selectedVital, setSelectedVital] = useState('bpm');
 
@@ -31,38 +31,38 @@ function App() {
   // REAL FIREBASE CONNECTION
   // ==========================================
   useEffect(() => {
-    // Only connect to Firebase if the user is logged in securely
     if (!isAuthenticated) return;
 
-    // Point exactly to where the ESP32 writes the data
     const vitalsRef = ref(db, 'patients/patient_001/vitals');
 
-    // This listener triggers instantly whenever the ESP32 updates Firebase
     const unsubscribe = onValue(vitalsRef, (snapshot) => {
       if (snapshot.exists()) {
         const newData = snapshot.val();
         
-        // Update the big numbers on the cards
-        setVitals(newData);
+        // Update all 4 vitals
+        setVitals({
+          bpm: newData.bpm,
+          spo2: newData.spo2,
+          temperature: newData.temperature,
+          ecg: newData.ecg_value || 0 // Catch the ECG value
+        });
 
-        // Update the array for the Recharts graph
         setHistory(prevHistory => {
           const newPoint = {
             time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
             bpm: newData.bpm,
             spo2: newData.spo2,
-            temperature: newData.temperature
+            temperature: newData.temperature,
+            ecg: newData.ecg_value || 0
           };
           
           const updatedHistory = [...prevHistory, newPoint];
-          // Keep only the last 20 readings to keep the graph moving smoothly
           if (updatedHistory.length > 20) updatedHistory.shift(); 
           return updatedHistory;
         });
       }
     });
 
-    // Disconnect when logged out or closed
     return () => unsubscribe();
   }, [isAuthenticated]);
   // ==========================================
@@ -82,6 +82,7 @@ function App() {
     if (selectedVital === 'bpm') return '#ff4757';
     if (selectedVital === 'spo2') return '#1e90ff';
     if (selectedVital === 'temperature') return '#ffa502';
+    if (selectedVital === 'ecg') return '#a55eea'; // Neon Purple for ECG
     return '#2ed573';
   };
 
@@ -155,6 +156,7 @@ function App() {
         </aside>
 
         <main className="content-area">
+          {/* 4 Cards Grid */}
           <div className="cards-grid">
             <div className={`vital-card ${selectedVital === 'bpm' ? 'active-red' : ''}`} onClick={() => setSelectedVital('bpm')}>
               <div className="card-header"><span className="icon">❤️</span><h2>Heart Rate</h2></div>
@@ -167,6 +169,10 @@ function App() {
             <div className={`vital-card ${selectedVital === 'temperature' ? 'active-orange' : ''}`} onClick={() => setSelectedVital('temperature')}>
               <div className="card-header"><span className="icon">🌡️</span><h2>Body Temp</h2></div>
               <div className="vital-value text-orange">{vitals.temperature} <span className="unit">°C</span></div>
+            </div>
+            <div className={`vital-card ${selectedVital === 'ecg' ? 'active-purple' : ''}`} onClick={() => setSelectedVital('ecg')}>
+              <div className="card-header"><span className="icon">⚡</span><h2>ECG Signal</h2></div>
+              <div className="vital-value text-purple">{vitals.ecg} <span className="unit">RAW</span></div>
             </div>
           </div>
 
