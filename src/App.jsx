@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { ref, onValue } from 'firebase/database';
 import { db } from './firebase';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
+import { GoogleGenerativeAI } from "@google/generative-ai";
 import './App.css';
 
 function App() {
@@ -16,8 +17,9 @@ function App() {
   const [selectedVital, setSelectedVital] = useState('bpm');
   const [showHistoryPage, setShowHistoryPage] = useState(false);
   
-  // AI State (Listens to the Python script on Render)
-  const [aiPrediction, setAiPrediction] = useState("Awaiting Neural Network analysis...");
+  // Gemini AI State
+  const [aiAssessment, setAiAssessment] = useState("");
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
 
   const patientInfo = {
     name: "John Doe",
@@ -37,19 +39,11 @@ function App() {
   useEffect(() => {
     if (!isAuthenticated) return;
 
-    // Listen to the whole patient node to catch both vitals and the AI string
     const patientRef = ref(db, 'patients/patient_001');
 
     const unsubscribe = onValue(patientRef, (snapshot) => {
       if (snapshot.exists()) {
         const data = snapshot.val();
-        
-        // 1. Update AI Prediction if the Python script has written it
-        if (data.ai_assessment) {
-          setAiPrediction(data.ai_assessment);
-        }
-
-        // 2. Safely extract vitals data
         const vitalsData = data.vitals || {};
         
         setVitals({
@@ -81,6 +75,33 @@ function App() {
 
     return () => unsubscribe();
   }, [isAuthenticated]);
+  // ==========================================
+
+  // ==========================================
+  // GEMINI AI ENGINE
+  // ==========================================
+  const generateAIAssessment = async () => {
+    setIsAnalyzing(true);
+    try {
+      // PASTE YOUR GOOGLE AI STUDIO API KEY HERE
+      const genAI = new GoogleGenerativeAI(import.meta.env.VITE_GEMINI_API_KEY);
+      const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+
+      const prompt = `You are an expert ICU AI assistant. Analyze these current patient vitals:
+      Heart Rate: ${vitals.bpm} BPM
+      Blood Oxygen: ${vitals.spo2}%
+      Body Temperature: ${vitals.temperature}°C
+      
+      Write a concise, professional 2-sentence medical assessment of the patient's current status based on these numbers. Keep it clinical and direct. Do not use markdown formatting.`;
+
+      const result = await model.generateContent(prompt);
+      setAiAssessment(result.response.text());
+    } catch (error) {
+      console.error(error);
+      setAiAssessment("Error connecting to Gemini AI. Please check your API key and network.");
+    }
+    setIsAnalyzing(false);
+  };
   // ==========================================
 
   const handleLogin = (e) => {
@@ -216,10 +237,21 @@ function App() {
           </div>
 
           <div className="panel ai-panel" style={{ marginTop: '1.5rem', border: '1px solid var(--neon-purple)' }}>
-            <h3 style={{ color: 'var(--neon-purple)', margin: '0 0 10px 0' }}>🧠 Neural Network Diagnostic</h3>
-            <div style={{ marginTop: '10px', fontSize: '0.9rem', lineHeight: '1.5', padding: '12px', backgroundColor: 'rgba(165, 94, 234, 0.1)', borderRadius: '8px', borderLeft: '3px solid var(--neon-purple)' }}>
-              {aiPrediction}
-            </div>
+            <h3 style={{ color: 'var(--neon-purple)', margin: '0 0 10px 0' }}>✨ AI Health Assistant</h3>
+            <button 
+              onClick={generateAIAssessment} 
+              disabled={isAnalyzing} 
+              className="action-btn"
+              style={{ width: '100%', margin: '0', backgroundColor: 'var(--neon-purple)', color: '#fff', padding: '10px' }}
+            >
+              {isAnalyzing ? "Analyzing Vitals..." : "Generate AI Assessment"}
+            </button>
+            
+            {aiAssessment && (
+              <div style={{ marginTop: '15px', fontSize: '0.9rem', lineHeight: '1.5', padding: '12px', backgroundColor: 'rgba(165, 94, 234, 0.1)', borderRadius: '8px', borderLeft: '3px solid var(--neon-purple)' }}>
+                {aiAssessment}
+              </div>
+            )}
           </div>
 
           <div className="panel alert-log" style={{ marginTop: '1.5rem' }}>
