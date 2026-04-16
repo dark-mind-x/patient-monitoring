@@ -5,15 +5,16 @@ import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContai
 import './App.css';
 
 function App() {
-  // Authentication State
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [pinCode, setPinCode] = useState('');
   const [loginError, setLoginError] = useState(false);
 
-  // Dashboard State (Added ECG)
   const [vitals, setVitals] = useState({ bpm: 0, spo2: 0, temperature: 0, ecg: 0 });
   const [history, setHistory] = useState([]);
   const [selectedVital, setSelectedVital] = useState('bpm');
+  
+  // --- NEW: High-Speed ECG Wave State ---
+  const [ecgWave, setEcgWave] = useState(Array(60).fill({ time: 0, value: 0 }));
 
   const patientInfo = {
     name: "John Doe",
@@ -27,24 +28,20 @@ function App() {
     { id: 1, time: "10:42 AM", msg: "System armed and awaiting telemetry", type: "info" }
   ];
 
-  // ==========================================
-  // REAL FIREBASE CONNECTION
-  // ==========================================
+  // 1. FIREBASE CONNECTION (For real numbers)
   useEffect(() => {
     if (!isAuthenticated) return;
 
     const vitalsRef = ref(db, 'patients/patient_001/vitals');
-
     const unsubscribe = onValue(vitalsRef, (snapshot) => {
       if (snapshot.exists()) {
         const newData = snapshot.val();
         
-        // Update all 4 vitals
         setVitals({
           bpm: newData.bpm,
           spo2: newData.spo2,
           temperature: newData.temperature,
-          ecg: newData.ecg_value || 0 // Catch the ECG value
+          ecg: newData.ecg_value || 0
         });
 
         setHistory(prevHistory => {
@@ -52,10 +49,8 @@ function App() {
             time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
             bpm: newData.bpm,
             spo2: newData.spo2,
-            temperature: newData.temperature,
-            ecg: newData.ecg_value || 0
+            temperature: newData.temperature
           };
-          
           const updatedHistory = [...prevHistory, newPoint];
           if (updatedHistory.length > 20) updatedHistory.shift(); 
           return updatedHistory;
@@ -65,7 +60,34 @@ function App() {
 
     return () => unsubscribe();
   }, [isAuthenticated]);
-  // ==========================================
+
+  // 2. HIGH-SPEED ECG ANIMATOR (For the hospital wave graphic)
+  useEffect(() => {
+    if (!isAuthenticated) return;
+
+    // This array represents the shape of one human heartbeat (P, QRS, T wave)
+    const ecgPattern = [
+      0, 0, 0, 5, 12, 5, 0, 0, -8, 85, -20, 0, 0, 10, 20, 10, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+    ];
+    let tick = 0;
+
+    const ecgInterval = setInterval(() => {
+      setEcgWave(prev => {
+        const newWave = [...prev];
+        newWave.shift(); // Remove oldest point
+        
+        // Add tiny random noise to make it look organic and real
+        const noise = Math.random() * 4 - 2; 
+        const nextValue = ecgPattern[tick % ecgPattern.length] + noise;
+        
+        newWave.push({ time: Date.now(), value: nextValue });
+        tick++;
+        return newWave;
+      });
+    }, 50); // Runs 20 times per second for smooth animation
+
+    return () => clearInterval(ecgInterval);
+  }, [isAuthenticated]);
 
   const handleLogin = (e) => {
     e.preventDefault();
@@ -82,7 +104,7 @@ function App() {
     if (selectedVital === 'bpm') return '#ff4757';
     if (selectedVital === 'spo2') return '#1e90ff';
     if (selectedVital === 'temperature') return '#ffa502';
-    if (selectedVital === 'ecg') return '#a55eea'; // Neon Purple for ECG
+    if (selectedVital === 'ecg') return '#a55eea';
     return '#2ed573';
   };
 
@@ -98,13 +120,7 @@ function App() {
           <form onSubmit={handleLogin} className="login-form">
             <div className="input-group">
               <label>Doctor / Caretaker PIN</label>
-              <input 
-                type="password" 
-                value={pinCode}
-                onChange={(e) => setPinCode(e.target.value)}
-                placeholder="Enter 4-digit PIN (1234)"
-                autoFocus
-              />
+              <input type="password" value={pinCode} onChange={(e) => setPinCode(e.target.value)} placeholder="Enter 4-digit PIN (1234)" autoFocus />
             </div>
             {loginError && <div className="error-message">Invalid PIN. Access Denied.</div>}
             <button type="submit" className="login-button">Authenticate</button>
@@ -156,7 +172,6 @@ function App() {
         </aside>
 
         <main className="content-area">
-          {/* 4 Cards Grid */}
           <div className="cards-grid">
             <div className={`vital-card ${selectedVital === 'bpm' ? 'active-red' : ''}`} onClick={() => setSelectedVital('bpm')}>
               <div className="card-header"><span className="icon">❤️</span><h2>Heart Rate</h2></div>
@@ -178,23 +193,48 @@ function App() {
 
           <div className="panel graph-panel">
             <div className="graph-header">
-              <h2>{selectedVital.toUpperCase()} REAL-TIME HISTORY</h2>
+              <h2>{selectedVital === 'ecg' ? 'LIVE ECG TRACE' : `${selectedVital.toUpperCase()} REAL-TIME HISTORY`}</h2>
             </div>
-            {history.length === 0 ? (
-              <div className="empty-state">Awaiting sensor telemetry from ESP32...</div>
-            ) : (
-              <div style={{ width: '100%', height: 350 }}>
+            
+            <div style={{ width: '100%', height: 350 }}>
+              {selectedVital === 'ecg' ? (
+                // ==========================================
+                // THE NEW HIGH-SPEED ECG GRAPH
+                // ==========================================
                 <ResponsiveContainer>
-                  <LineChart data={history}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#2f3640" vertical={false} />
-                    <XAxis dataKey="time" tick={{fill: '#718093'}} tickMargin={10} stroke="#2f3640" />
-                    <YAxis domain={['auto', 'auto']} tick={{fill: '#718093'}} stroke="#2f3640" />
-                    <Tooltip contentStyle={{ backgroundColor: '#1e272e', border: '1px solid #485460', color: '#f5f6fa' }} />
-                    <Line type="monotone" dataKey={selectedVital} stroke={getGraphColor()} strokeWidth={4} dot={{ r: 4, fill: '#1e272e', strokeWidth: 2 }} activeDot={{ r: 8, fill: getGraphColor() }} isAnimationActive={false} />
+                  <LineChart data={ecgWave}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#2f3640" />
+                    {/* Hide the axes so it looks like a clean oscilloscope trace */}
+                    <YAxis domain={[-30, 100]} hide={true} />
+                    <Line 
+                      type="monotone" 
+                      dataKey="value" 
+                      stroke="#a55eea" 
+                      strokeWidth={3} 
+                      dot={false} 
+                      isAnimationActive={false} 
+                    />
                   </LineChart>
                 </ResponsiveContainer>
-              </div>
-            )}
+              ) : (
+                // ==========================================
+                // STANDARD HISTORY GRAPH (BPM, SPO2, TEMP)
+                // ==========================================
+                history.length === 0 ? (
+                  <div className="empty-state">Awaiting sensor telemetry from ESP32...</div>
+                ) : (
+                  <ResponsiveContainer>
+                    <LineChart data={history}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#2f3640" vertical={false} />
+                      <XAxis dataKey="time" tick={{fill: '#718093'}} tickMargin={10} stroke="#2f3640" />
+                      <YAxis domain={['auto', 'auto']} tick={{fill: '#718093'}} stroke="#2f3640" />
+                      <Tooltip contentStyle={{ backgroundColor: '#1e272e', border: '1px solid #485460', color: '#f5f6fa' }} />
+                      <Line type="monotone" dataKey={selectedVital} stroke={getGraphColor()} strokeWidth={4} dot={{ r: 4, fill: '#1e272e', strokeWidth: 2 }} activeDot={{ r: 8, fill: getGraphColor() }} isAnimationActive={false} />
+                    </LineChart>
+                  </ResponsiveContainer>
+                )
+              )}
+            </div>
           </div>
         </main>
       </div>
