@@ -9,9 +9,12 @@ function App() {
   const [pinCode, setPinCode] = useState('');
   const [loginError, setLoginError] = useState(false);
 
+  // Dashboard & History State
   const [vitals, setVitals] = useState({ bpm: 0, spo2: 0, temperature: 0, ecg: 0 });
-  const [history, setHistory] = useState([]);
+  const [history, setHistory] = useState([]); // Keeps last 20 for the graph
+  const [sessionHistory, setSessionHistory] = useState([]); // Keeps ALL points for the table
   const [selectedVital, setSelectedVital] = useState('bpm');
+  const [showHistoryPage, setShowHistoryPage] = useState(false); // Toggles the new page
 
   const patientInfo = {
     name: "John Doe",
@@ -44,19 +47,23 @@ function App() {
           ecg: newData.ecg_value || 0 
         });
 
+        const newPoint = {
+          time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
+          bpm: newData.bpm,
+          spo2: newData.spo2,
+          temperature: newData.temperature,
+          ecg: newData.ecg_value || 0
+        };
+
+        // Update Graph Array (Max 20 points)
         setHistory(prevHistory => {
-          const newPoint = {
-            time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
-            bpm: newData.bpm,
-            spo2: newData.spo2,
-            temperature: newData.temperature,
-            ecg: newData.ecg_value || 0
-          };
-          
           const updatedHistory = [...prevHistory, newPoint];
           if (updatedHistory.length > 20) updatedHistory.shift(); 
           return updatedHistory;
         });
+
+        // Update Table Array (Uncapped, newest at the top)
+        setSessionHistory(prev => [newPoint, ...prev]);
       }
     });
 
@@ -83,6 +90,7 @@ function App() {
     return '#2ed573';
   };
 
+  // --- VIEW 1: LOGIN SCREEN ---
   if (!isAuthenticated) {
     return (
       <div className="login-container">
@@ -111,6 +119,59 @@ function App() {
     );
   }
 
+  // --- VIEW 2: HISTORY TABLE PAGE ---
+  if (showHistoryPage) {
+    return (
+      <div className="dark-dashboard history-view">
+        <nav className="top-nav">
+          <div className="nav-brand">
+            <span className="logo-icon">🏥</span>
+            <h1>ICU Session History Log</h1>
+          </div>
+          <div className="system-status">
+            <button onClick={() => setShowHistoryPage(false)} className="action-btn back-btn">
+              ← Back to Dashboard
+            </button>
+          </div>
+        </nav>
+
+        <div className="table-container">
+          <div className="table-wrapper">
+            <table className="vitals-table">
+              <thead>
+                <tr>
+                  <th>Timestamp</th>
+                  <th>Heart Rate (BPM)</th>
+                  <th>Blood Oxygen (SpO2%)</th>
+                  <th>Body Temp (°C)</th>
+                  <th>ECG Signal (RAW)</th>
+                </tr>
+              </thead>
+              <tbody>
+                {sessionHistory.length === 0 ? (
+                  <tr>
+                    <td colSpan="5" className="empty-row">No session data recorded yet.</td>
+                  </tr>
+                ) : (
+                  sessionHistory.map((point, index) => (
+                    <tr key={index}>
+                      <td className="time-col">{point.time}</td>
+                      <td className="text-red">{point.bpm}</td>
+                      <td className="text-blue">{point.spo2}%</td>
+                      <td className="text-orange">{point.temperature}°C</td>
+                      <td className="text-purple">{point.ecg}</td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // --- VIEW 3: MAIN DASHBOARD ---
   return (
     <div className="dark-dashboard">
       <nav className="top-nav">
@@ -121,6 +182,10 @@ function App() {
         <div className="system-status">
           <span className="pulse-dot"></span>
           <span>System Online</span>
+          {/* New History Button */}
+          <button onClick={() => setShowHistoryPage(true)} className="action-btn history-btn">
+            📋 View History
+          </button>
           <button onClick={() => setIsAuthenticated(false)} className="logout-btn">Log Out</button>
         </div>
       </nav>
@@ -166,7 +231,6 @@ function App() {
               <div className="card-header"><span className="icon">🌡️</span><h2>Body Temp</h2></div>
               <div className="vital-value text-orange">{vitals.temperature} <span className="unit">°C</span></div>
             </div>
-            {/* ECG Card updated to hide the raw number */}
             <div className={`vital-card ${selectedVital === 'ecg' ? 'active-purple' : ''}`} onClick={() => setSelectedVital('ecg')}>
               <div className="card-header"><span className="icon">⚡</span><h2>ECG Signal</h2></div>
               <div className="vital-value text-purple" style={{fontSize: '2rem', marginTop: '10px'}}>LIVE <span className="unit">TRACE</span></div>
@@ -183,7 +247,6 @@ function App() {
               <div style={{ width: '100%', height: 350 }}>
                 <ResponsiveContainer>
                   <LineChart data={history}>
-                    {/* Added vertical grid lines back in to look more like ECG paper */}
                     <CartesianGrid strokeDasharray="3 3" stroke="#2f3640" />
                     <XAxis dataKey="time" tick={{fill: '#718093'}} tickMargin={10} stroke="#2f3640" />
                     <YAxis domain={['auto', 'auto']} tick={{fill: '#718093'}} stroke="#2f3640" />
