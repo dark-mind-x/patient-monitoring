@@ -11,10 +11,13 @@ function App() {
 
   // Dashboard & History State
   const [vitals, setVitals] = useState({ bpm: 0, spo2: 0, temperature: 0, ecg: 0 });
-  const [history, setHistory] = useState([]); // Keeps last 20 for the graph
-  const [sessionHistory, setSessionHistory] = useState([]); // Keeps ALL points for the table
+  const [history, setHistory] = useState([]);
+  const [sessionHistory, setSessionHistory] = useState([]);
   const [selectedVital, setSelectedVital] = useState('bpm');
-  const [showHistoryPage, setShowHistoryPage] = useState(false); // Toggles the new page
+  const [showHistoryPage, setShowHistoryPage] = useState(false);
+  
+  // AI State (Listens to the Python script on Render)
+  const [aiPrediction, setAiPrediction] = useState("Awaiting Neural Network analysis...");
 
   const patientInfo = {
     name: "John Doe",
@@ -34,35 +37,44 @@ function App() {
   useEffect(() => {
     if (!isAuthenticated) return;
 
-    const vitalsRef = ref(db, 'patients/patient_001/vitals');
+    // Listen to the whole patient node to catch both vitals and the AI string
+    const patientRef = ref(db, 'patients/patient_001');
 
-    const unsubscribe = onValue(vitalsRef, (snapshot) => {
+    const unsubscribe = onValue(patientRef, (snapshot) => {
       if (snapshot.exists()) {
-        const newData = snapshot.val();
+        const data = snapshot.val();
+        
+        // 1. Update AI Prediction if the Python script has written it
+        if (data.ai_assessment) {
+          setAiPrediction(data.ai_assessment);
+        }
+
+        // 2. Safely extract vitals data
+        const vitalsData = data.vitals || {};
         
         setVitals({
-          bpm: newData.bpm,
-          spo2: newData.spo2,
-          temperature: newData.temperature,
-          ecg: newData.ecg_value || 0 
+          bpm: vitalsData.bpm || 0,
+          spo2: vitalsData.spo2 || 0,
+          temperature: vitalsData.temperature || 0,
+          ecg: vitalsData.ecg_value || 0
         });
 
         const newPoint = {
           time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
-          bpm: newData.bpm,
-          spo2: newData.spo2,
-          temperature: newData.temperature,
-          ecg: newData.ecg_value || 0
+          bpm: vitalsData.bpm || 0,
+          spo2: vitalsData.spo2 || 0,
+          temperature: vitalsData.temperature || 0,
+          ecg: vitalsData.ecg_value || 0
         };
 
-        // Update Graph Array (Max 20 points)
+        // Update Graph Array
         setHistory(prevHistory => {
           const updatedHistory = [...prevHistory, newPoint];
-          if (updatedHistory.length > 20) updatedHistory.shift(); 
+          if (updatedHistory.length > 20) updatedHistory.shift();
           return updatedHistory;
         });
 
-        // Update Table Array (Uncapped, newest at the top)
+        // Update Table Array
         setSessionHistory(prev => [newPoint, ...prev]);
       }
     });
@@ -86,7 +98,7 @@ function App() {
     if (selectedVital === 'bpm') return '#ff4757';
     if (selectedVital === 'spo2') return '#1e90ff';
     if (selectedVital === 'temperature') return '#ffa502';
-    if (selectedVital === 'ecg') return '#a55eea'; 
+    if (selectedVital === 'ecg') return '#a55eea';
     return '#2ed573';
   };
 
@@ -103,8 +115,8 @@ function App() {
           <form onSubmit={handleLogin} className="login-form">
             <div className="input-group">
               <label>Doctor / Caretaker PIN</label>
-              <input 
-                type="password" 
+              <input
+                type="password"
                 value={pinCode}
                 onChange={(e) => setPinCode(e.target.value)}
                 placeholder="Enter 4-digit PIN (1234)"
@@ -182,7 +194,6 @@ function App() {
         <div className="system-status">
           <span className="pulse-dot"></span>
           <span>System Online</span>
-          {/* New History Button */}
           <button onClick={() => setShowHistoryPage(true)} className="action-btn history-btn">
             📋 View History
           </button>
@@ -204,7 +215,14 @@ function App() {
             </div>
           </div>
 
-          <div className="panel alert-log">
+          <div className="panel ai-panel" style={{ marginTop: '1.5rem', border: '1px solid var(--neon-purple)' }}>
+            <h3 style={{ color: 'var(--neon-purple)', margin: '0 0 10px 0' }}>🧠 Neural Network Diagnostic</h3>
+            <div style={{ marginTop: '10px', fontSize: '0.9rem', lineHeight: '1.5', padding: '12px', backgroundColor: 'rgba(165, 94, 234, 0.1)', borderRadius: '8px', borderLeft: '3px solid var(--neon-purple)' }}>
+              {aiPrediction}
+            </div>
+          </div>
+
+          <div className="panel alert-log" style={{ marginTop: '1.5rem' }}>
             <h3>System Status</h3>
             <ul>
               {recentAlerts.map(alert => (
@@ -251,14 +269,14 @@ function App() {
                     <XAxis dataKey="time" tick={{fill: '#718093'}} tickMargin={10} stroke="#2f3640" />
                     <YAxis domain={['auto', 'auto']} tick={{fill: '#718093'}} stroke="#2f3640" />
                     <Tooltip contentStyle={{ backgroundColor: '#1e272e', border: '1px solid #485460', color: '#f5f6fa' }} />
-                    <Line 
-                      type="monotone" 
-                      dataKey={selectedVital} 
-                      stroke={getGraphColor()} 
-                      strokeWidth={3} 
-                      dot={selectedVital === 'ecg' ? false : { r: 4, fill: '#1e272e', strokeWidth: 2 }} 
-                      activeDot={{ r: 8, fill: getGraphColor() }} 
-                      isAnimationActive={false} 
+                    <Line
+                      type="monotone"
+                      dataKey={selectedVital}
+                      stroke={getGraphColor()}
+                      strokeWidth={3}
+                      dot={selectedVital === 'ecg' ? false : { r: 4, fill: '#1e272e', strokeWidth: 2 }}
+                      activeDot={{ r: 8, fill: getGraphColor() }}
+                      isAnimationActive={false}
                     />
                   </LineChart>
                 </ResponsiveContainer>
