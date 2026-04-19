@@ -29,7 +29,7 @@ function App() {
   const lastAlertMsg = useRef(""); // Prevents spamming the same alert
 
   const patientInfo = {
-    name: "John Doe",
+    name: "Revanth",
     age: 45,
     bloodType: "O+",
     doctor: "Dr. Smith",
