@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { ref, onValue } from 'firebase/database';
 import { db } from './firebase';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
@@ -6,6 +6,7 @@ import { GoogleGenerativeAI } from "@google/generative-ai";
 import './App.css';
 
 function App() {
+  // Authentication State
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [pinCode, setPinCode] = useState('');
   const [loginError, setLoginError] = useState(false);
@@ -21,20 +22,23 @@ function App() {
   const [aiAssessment, setAiAssessment] = useState("");
   const [isAnalyzing, setIsAnalyzing] = useState(false);
 
+  // Dynamic Alerts State
+  const [alerts, setAlerts] = useState([
+    { id: 0, time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }), msg: "System Armed. Awaiting Telemetry...", type: "info" }
+  ]);
+  const lastAlertMsg = useRef(""); // Prevents spamming the same alert
+
   const patientInfo = {
     name: "John Doe",
     age: 45,
     bloodType: "O+",
     doctor: "Dr. Smith",
-    status: "Post-Surgery Recovery"
+    status: "Post-Surgery Recovery",
+    phone: "919876543210" // Update this to test the WhatsApp button
   };
 
-  const recentAlerts = [
-    { id: 1, time: "10:42 AM", msg: "System armed and awaiting telemetry", type: "info" }
-  ];
-
   // ==========================================
-  // REAL FIREBASE CONNECTION
+  // REAL FIREBASE CONNECTION & ALERT LOGIC
   // ==========================================
   useEffect(() => {
     if (!isAuthenticated) return;
@@ -46,6 +50,12 @@ function App() {
         const data = snapshot.val();
         const vitalsData = data.vitals || {};
         
+        // 1. Check for AI String (if written externally, though we now do it locally)
+        if (data.ai_assessment) {
+          setAiAssessment(data.ai_assessment);
+        }
+
+        // 2. Set UI Data
         setVitals({
           bpm: vitalsData.bpm || 0,
           spo2: vitalsData.spo2 || 0,
@@ -53,6 +63,47 @@ function App() {
           ecg: vitalsData.ecg_value || 0
         });
 
+        // 3. --- DYNAMIC ANOMALY ENGINE ---
+        let newAlert = null;
+        const timeNow = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+
+        // Flatline / Disconnect Check
+        if (vitalsData.bpm === 0 || vitalsData.spo2 === 0) {
+          newAlert = { id: Date.now(), time: timeNow, msg: `CRITICAL: Sensor Disconnected / Flatline Detected!`, type: "warning" };
+        } 
+        // Threshold Checks
+        else if (vitalsData.bpm < 50) {
+          newAlert = { id: Date.now(), time: timeNow, msg: `CRITICAL: Bradycardia detected (${vitalsData.bpm} BPM)`, type: "warning" };
+        } else if (vitalsData.bpm > 100) {
+          newAlert = { id: Date.now(), time: timeNow, msg: `WARNING: Tachycardia detected (${vitalsData.bpm} BPM)`, type: "warning" };
+        } else if (vitalsData.spo2 < 90) {
+          newAlert = { id: Date.now(), time: timeNow, msg: `CRITICAL: Hypoxia risk. SpO2 dropped to ${vitalsData.spo2}%`, type: "warning" };
+        } else if (vitalsData.temperature >= 38.0) {
+          newAlert = { id: Date.now(), time: timeNow, msg: `WARNING: Febrile temp detected (${vitalsData.temperature}°C)`, type: "warning" };
+        } else if (vitalsData.ecg_value < 100 || vitalsData.ecg_value > 4000) {
+          newAlert = { id: Date.now(), time: timeNow, msg: `WARNING: Abnormal ECG Signal / Lead Off`, type: "warning" };
+        }
+
+        // Trigger Auto-Telegram and UI Update if it's a new emergency
+        if (newAlert && newAlert.msg !== lastAlertMsg.current) {
+          setAlerts(prev => [newAlert, ...prev].slice(0, 8)); // Keep top 8
+          lastAlertMsg.current = newAlert.msg;
+
+          // Replace with your actual Telegram credentials for the demo!
+          if (newAlert.type === "warning") {
+            const botToken = "8299395983:AAGB8vCw5oNjx6Uu9h-j-TCZ48pWHkiw5CE"; 
+            const chatId = "1641684763";
+            const alertText = `🚨 URGENT ICU ALERT: \n${newAlert.msg}\nPatient: ${patientInfo.name}`;
+            
+            // Only fire if tokens are filled out to prevent console errors
+            if (botToken !== "1641684763") {
+              fetch(`https://api.telegram.org/bot${botToken}/sendMessage?chat_id=${chatId}&text=${encodeURIComponent(alertText)}`)
+                .catch(err => console.error("Failed to send auto-alert", err));
+            }
+          }
+        }
+
+        // 4. Update Graphs & History
         const newPoint = {
           time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
           bpm: vitalsData.bpm || 0,
@@ -61,14 +112,12 @@ function App() {
           ecg: vitalsData.ecg_value || 0
         };
 
-        // Update Graph Array
         setHistory(prevHistory => {
           const updatedHistory = [...prevHistory, newPoint];
           if (updatedHistory.length > 20) updatedHistory.shift();
           return updatedHistory;
         });
 
-        // Update Table Array
         setSessionHistory(prev => [newPoint, ...prev]);
       }
     });
@@ -83,8 +132,7 @@ function App() {
   const generateAIAssessment = async () => {
     setIsAnalyzing(true);
     try {
-      // PASTE YOUR GOOGLE AI STUDIO API KEY HERE
-      const genAI = new GoogleGenerativeAI(import.meta.env.VITE_GEMINI_API_KEY);
+      const genAI = new GoogleGenerativeAI(import.meta.env.VITE_GEMINI_API_KEY); 
       const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
 
       const prompt = `You are an expert ICU AI assistant. Analyze these current patient vitals:
@@ -98,11 +146,19 @@ function App() {
       setAiAssessment(result.response.text());
     } catch (error) {
       console.error(error);
-      setAiAssessment("Error connecting to Gemini AI. Please check your API key and network.");
+      setAiAssessment("Error connecting to Gemini AI. Please check your API key in the .env file.");
     }
     setIsAnalyzing(false);
   };
+
   // ==========================================
+  // WHATSAPP MANUAL MESSAGING
+  // ==========================================
+  const sendPatientMessage = () => {
+    const text = `URGENT ALERT from ICU Monitor: \nPatient ${patientInfo.name} requires attention. \nCurrent Vitals: \n❤️ ${vitals.bpm} BPM \n🩸 ${vitals.spo2}% SpO2 \n🌡️ ${vitals.temperature}°C \n\nPlease log into the portal immediately.`;
+    const url = `https://wa.me/${patientInfo.phone}?text=${encodeURIComponent(text)}`;
+    window.open(url, '_blank');
+  };
 
   const handleLogin = (e) => {
     e.preventDefault();
@@ -136,13 +192,7 @@ function App() {
           <form onSubmit={handleLogin} className="login-form">
             <div className="input-group">
               <label>Doctor / Caretaker PIN</label>
-              <input
-                type="password"
-                value={pinCode}
-                onChange={(e) => setPinCode(e.target.value)}
-                placeholder="Enter 4-digit PIN (1234)"
-                autoFocus
-              />
+              <input type="password" value={pinCode} onChange={(e) => setPinCode(e.target.value)} placeholder="Enter 4-digit PIN (1234)" autoFocus />
             </div>
             {loginError && <div className="error-message">Invalid PIN. Access Denied.</div>}
             <button type="submit" className="login-button">Authenticate</button>
@@ -162,9 +212,7 @@ function App() {
             <h1>ICU Session History Log</h1>
           </div>
           <div className="system-status">
-            <button onClick={() => setShowHistoryPage(false)} className="action-btn back-btn">
-              ← Back to Dashboard
-            </button>
+            <button onClick={() => setShowHistoryPage(false)} className="action-btn back-btn">← Back to Dashboard</button>
           </div>
         </nav>
 
@@ -173,18 +221,12 @@ function App() {
             <table className="vitals-table">
               <thead>
                 <tr>
-                  <th>Timestamp</th>
-                  <th>Heart Rate (BPM)</th>
-                  <th>Blood Oxygen (SpO2%)</th>
-                  <th>Body Temp (°C)</th>
-                  <th>ECG Signal (RAW)</th>
+                  <th>Timestamp</th><th>Heart Rate (BPM)</th><th>Blood Oxygen (SpO2%)</th><th>Body Temp (°C)</th><th>ECG Signal (RAW)</th>
                 </tr>
               </thead>
               <tbody>
                 {sessionHistory.length === 0 ? (
-                  <tr>
-                    <td colSpan="5" className="empty-row">No session data recorded yet.</td>
-                  </tr>
+                  <tr><td colSpan="5" className="empty-row">No session data recorded yet.</td></tr>
                 ) : (
                   sessionHistory.map((point, index) => (
                     <tr key={index}>
@@ -215,9 +257,7 @@ function App() {
         <div className="system-status">
           <span className="pulse-dot"></span>
           <span>System Online</span>
-          <button onClick={() => setShowHistoryPage(true)} className="action-btn history-btn">
-            📋 View History
-          </button>
+          <button onClick={() => setShowHistoryPage(true)} className="action-btn history-btn">📋 View History</button>
           <button onClick={() => setIsAuthenticated(false)} className="logout-btn">Log Out</button>
         </div>
       </nav>
@@ -234,19 +274,21 @@ function App() {
               <div className="detail-item"><label>Blood</label><span>{patientInfo.bloodType}</span></div>
               <div className="detail-item"><label>Attending</label><span>{patientInfo.doctor}</span></div>
             </div>
+            
+            <button 
+              onClick={sendPatientMessage} 
+              className="action-btn" 
+              style={{ width: '100%', margin: '15px 0 0 0', backgroundColor: '#25D366', color: '#fff', border: 'none', padding: '10px' }}
+            >
+              💬 Message Patient / Contact
+            </button>
           </div>
 
           <div className="panel ai-panel" style={{ marginTop: '1.5rem', border: '1px solid var(--neon-purple)' }}>
             <h3 style={{ color: 'var(--neon-purple)', margin: '0 0 10px 0' }}>✨ AI Health Assistant</h3>
-            <button 
-              onClick={generateAIAssessment} 
-              disabled={isAnalyzing} 
-              className="action-btn"
-              style={{ width: '100%', margin: '0', backgroundColor: 'var(--neon-purple)', color: '#fff', padding: '10px' }}
-            >
+            <button onClick={generateAIAssessment} disabled={isAnalyzing} className="action-btn" style={{ width: '100%', margin: '0', backgroundColor: 'var(--neon-purple)', color: '#fff', padding: '10px' }}>
               {isAnalyzing ? "Analyzing Vitals..." : "Generate AI Assessment"}
             </button>
-            
             {aiAssessment && (
               <div style={{ marginTop: '15px', fontSize: '0.9rem', lineHeight: '1.5', padding: '12px', backgroundColor: 'rgba(165, 94, 234, 0.1)', borderRadius: '8px', borderLeft: '3px solid var(--neon-purple)' }}>
                 {aiAssessment}
@@ -254,13 +296,15 @@ function App() {
             )}
           </div>
 
-          <div className="panel alert-log" style={{ marginTop: '1.5rem' }}>
-            <h3>System Status</h3>
+          <div className="panel alert-log" style={{ marginTop: '1.5rem', maxHeight: '250px', overflowY: 'auto' }}>
+            <h3>Anomaly Detection Log</h3>
             <ul>
-              {recentAlerts.map(alert => (
-                <li key={alert.id} className={`alert-item ${alert.type}`}>
-                  <span className="alert-time">{alert.time}</span>
-                  <span className="alert-msg">{alert.msg}</span>
+              {alerts.map(alert => (
+                <li key={alert.id} className={`alert-item ${alert.type}`} style={{ padding: '8px 0', borderBottom: '1px solid #2f3640' }}>
+                  <span className="alert-time" style={{ display: 'block', fontSize: '0.75rem', color: '#718093' }}>{alert.time}</span>
+                  <span className="alert-msg" style={{ fontSize: '0.9rem', color: alert.type === 'warning' ? '#ff4757' : '#f5f6fa' }}>
+                    {alert.msg}
+                  </span>
                 </li>
               ))}
             </ul>
@@ -301,15 +345,7 @@ function App() {
                     <XAxis dataKey="time" tick={{fill: '#718093'}} tickMargin={10} stroke="#2f3640" />
                     <YAxis domain={['auto', 'auto']} tick={{fill: '#718093'}} stroke="#2f3640" />
                     <Tooltip contentStyle={{ backgroundColor: '#1e272e', border: '1px solid #485460', color: '#f5f6fa' }} />
-                    <Line
-                      type="monotone"
-                      dataKey={selectedVital}
-                      stroke={getGraphColor()}
-                      strokeWidth={3}
-                      dot={selectedVital === 'ecg' ? false : { r: 4, fill: '#1e272e', strokeWidth: 2 }}
-                      activeDot={{ r: 8, fill: getGraphColor() }}
-                      isAnimationActive={false}
-                    />
+                    <Line type="monotone" dataKey={selectedVital} stroke={getGraphColor()} strokeWidth={3} dot={selectedVital === 'ecg' ? false : { r: 4, fill: '#1e272e', strokeWidth: 2 }} activeDot={{ r: 8, fill: getGraphColor() }} isAnimationActive={false} />
                   </LineChart>
                 </ResponsiveContainer>
               </div>
