@@ -92,11 +92,11 @@ function App() {
           // Replace with your actual Telegram credentials for the demo!
           if (newAlert.type === "warning") {
             const botToken = "8299395983:AAGB8vCw5oNjx6Uu9h-j-TCZ48pWHkiw5CE"; 
-            const chatId = "1641684763";
+            const chatId = "6140312611";
             const alertText = `🚨 URGENT ICU ALERT: \n${newAlert.msg}\nPatient: ${patientInfo.name}`;
             
             // Only fire if tokens are filled out to prevent console errors
-            if (botToken !== "1641684763") {
+            if (botToken !== "8299395983:AAGB8vCw5oNjx6Uu9h-j-TCZ48pWHkiw5CE") {
               fetch(`https://api.telegram.org/bot${botToken}/sendMessage?chat_id=${chatId}&text=${encodeURIComponent(alertText)}`)
                 .catch(err => console.error("Failed to send auto-alert", err));
             }
